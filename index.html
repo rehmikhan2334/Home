@@ -2069,7 +2069,7 @@ body.ready .hero h1 .line > span {
     display: none;
     align-items: flex-start;
     gap: 0.8rem;
-    margin-top: 1.1rem;
+    margin: 0 0 1.1rem;
     padding: 1rem 1.1rem;
     border-radius: 14px;
     font-size: 0.9rem;
@@ -2811,6 +2811,23 @@ footer {
 .project-card[data-hidden],
 .filter-btn[hidden] {
     display: none !important;
+}
+
+/* Button result states */
+.btn-submit.is-success {
+    background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+    color: #fff !important;
+    box-shadow: 0 10px 30px -8px rgba(34, 197, 94, 0.6) !important;
+}
+
+.btn-submit.is-error {
+    background: linear-gradient(135deg, #e11d48, #f43f5e) !important;
+    color: #fff !important;
+}
+
+.btn-submit.is-success::before,
+.btn-submit.is-error::before {
+    opacity: 0 !important;
 }
 
     </style>
@@ -3669,13 +3686,14 @@ footer {
                             <span class="err">Please write at least 10 characters.</span>
                         </div>
 
+                        <div class="form-status" id="formStatus" role="status" aria-live="polite"></div>
+
                         <button type="submit" id="submitBtn" class="btn btn-primary btn-submit magnetic">
                             <i class="fas fa-paper-plane"></i> <span>Send Message</span>
                         </button>
                         <p class="form-note"><i class="fas fa-lock"></i> Your details are safe and only used to reply
                             to you.</p>
 
-                        <div class="form-status" id="formStatus" role="status" aria-live="polite"></div>
                     </form>
                 </div>
             </div>
@@ -4257,6 +4275,7 @@ footer {
 
         const setLoading = (on) => {
             btn.disabled = on;
+            if (on) btn.classList.remove('is-success', 'is-error');
             btnLabel.textContent = on ? 'Sending…' : 'Send Message';
             btnIcon.className = on ? 'fas fa-circle-notch fa-spin' : 'fas fa-paper-plane';
         };
@@ -4298,9 +4317,11 @@ footer {
                     _template: 'table',
                     _captcha: 'false',
                     _replyto: data.email,
+                    'Reply to': data.email,
                     Name: data.name,
                     Email: data.email,
                     Phone: data.phone || 'Not provided',
+                    WhatsApp: data.phone ? 'https://wa.me/' + data.phone.replace(/[^\d]/g, '').replace(/^0/, '92') : 'Not provided',
                     'Project Type': data.project,
                     Budget: data.budget,
                     Message: data.message,
@@ -4323,6 +4344,21 @@ footer {
             status.scrollIntoView({ behavior: 'smooth', block: 'center' });
         };
 
+        // button itself shows the result for a few seconds
+        let btnTimer;
+        const flashButton = (type, text, icon) => {
+            clearTimeout(btnTimer);
+            btn.classList.remove('is-success', 'is-error');
+            btn.classList.add(type === 'success' ? 'is-success' : 'is-error');
+            btnLabel.textContent = text;
+            btnIcon.className = icon;
+            btnTimer = setTimeout(() => {
+                btn.classList.remove('is-success', 'is-error');
+                btnLabel.textContent = 'Send Message';
+                btnIcon.className = 'fas fa-paper-plane';
+            }, 5000);
+        };
+
         let busy = false;
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -4336,6 +4372,7 @@ footer {
             const fields = Object.keys(rules).map((id) => $('#' + id));
             const valid = fields.map(validateField).every(Boolean);
             if (!valid) {
+                flashButton('error', 'Please fill all required fields', 'fas fa-circle-exclamation');
                 showResult('error', '<i class="fas fa-circle-exclamation"></i><span>Please fill in the highlighted fields (name, valid email, project type and a message of at least 10 characters).</span>');
                 const first = fields.find((f) => f.closest('.field').classList.contains('invalid'));
                 first && setTimeout(() => first.focus({ preventScroll: true }), 400);
@@ -4357,14 +4394,15 @@ footer {
             showStatus('info', '<i class="fas fa-circle-notch fa-spin"></i><span>Sending your message…</span>');
 
             let sent = false;
+            // 1st: FormSubmit (no account needed)  2nd: EmailJS (backup)
             try {
-                sent = await withTimeout(sendViaEmailJS(data), 12000);
+                sent = await withTimeout(sendViaFormSubmit(data), 15000);
             } catch (err1) {
-                console.warn('EmailJS failed, trying backup:', err1);
+                console.warn('FormSubmit failed, trying EmailJS:', err1);
                 try {
-                    sent = await withTimeout(sendViaFormSubmit(data), 15000);
+                    sent = await withTimeout(sendViaEmailJS(data), 12000);
                 } catch (err2) {
-                    console.error('Backup delivery failed:', err2);
+                    console.error('EmailJS failed too:', err2);
                 }
             }
             busy = false;
@@ -4373,11 +4411,14 @@ footer {
             if (sent) {
                 showResult('success', `<i class="fas fa-circle-check"></i><span>Thanks ${escapeHtml(data.name.split(' ')[0])}! Your message has been sent — I'll get back to you within 24 hours.</span>`);
                 toast('Message sent successfully!');
+                flashButton('success', 'Message Sent Successfully!', 'fas fa-circle-check');
                 form.reset();
+                $$('.field.invalid', form).forEach((f) => f.classList.remove('invalid'));
                 counter.textContent = '0 / 2000';
             } else {
                 const mail = `mailto:${CONFIG.email}?subject=${encodeURIComponent('Project enquiry: ' + data.project)}&body=${encodeURIComponent(data.message + '\n\n— ' + data.name + ' (' + data.email + ')')}`;
                 const wa = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hi Rehmat, I'm ${data.name} (${data.email}). Project: ${data.project}. ${data.message}`)}`;
+                flashButton('error', 'Not sent — please try again', 'fas fa-triangle-exclamation');
                 showResult('error', `<i class="fas fa-triangle-exclamation"></i><span>Sorry, the message couldn't be sent right now. Please <a href="${wa}" target="_blank" rel="noopener">send it on WhatsApp</a> or <a href="${mail}">email me directly</a> — your text is already filled in.</span>`);
             }
         });
