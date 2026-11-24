@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -2830,6 +2830,81 @@ footer {
     opacity: 0 !important;
 }
 
+/* Success popup */
+.sent-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: grid;
+    place-items: center;
+    padding: 1.2rem;
+    background: rgba(5, 7, 15, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: fadeIn 0.3s ease;
+}
+
+.sent-modal[hidden] {
+    display: none;
+}
+
+.sent-box {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    padding: 2.4rem 2rem 2rem;
+    border-radius: 24px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
+    animation: popIn 0.5s var(--ease);
+}
+
+.sent-box h3 {
+    font-family: var(--font-head);
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+
+.sent-box p {
+    color: var(--muted);
+    margin-bottom: 1.6rem;
+}
+
+.sent-check {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 1.2rem;
+}
+
+.sent-check svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: #22c55e;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sent-check circle {
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: draw 0.7s var(--ease) 0.15s forwards;
+    fill: rgba(34, 197, 94, 0.1);
+}
+
+.sent-check path {
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: draw 0.4s var(--ease) 0.7s forwards;
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: translateY(20px) scale(0.92); } }
+
     </style>
     <script>
         /* apply saved theme before paint (no flash) */
@@ -3730,6 +3805,16 @@ footer {
         <i class="fas fa-arrow-up"></i>
     </button>
 
+    <!-- Success popup (contact form) -->
+    <div class="sent-modal" id="sentModal" role="dialog" aria-modal="true" aria-labelledby="sentTitle" hidden>
+        <div class="sent-box">
+            <div class="sent-check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"></circle><path d="M15 27l7 7 15-15"></path></svg></div>
+            <h3 id="sentTitle">Message Sent!</h3>
+            <p id="sentText">Thank you! Your message has been delivered. I'll get back to you within 24 hours.</p>
+            <button type="button" class="btn btn-primary" id="sentClose">Okay, great!</button>
+        </div>
+    </div>
+
     <div class="toast" id="toast"><i class="fas fa-circle-check"></i><span id="toastText"></span></div>
 
     <script>
@@ -4359,6 +4444,21 @@ footer {
             }, 5000);
         };
 
+        // big centred success popup
+        const modal = $('#sentModal');
+        const openSentModal = (first) => {
+            if (!modal) return;
+            $('#sentText').textContent = `Thank you ${first}! Your message has been delivered. I'll get back to you within 24 hours.`;
+            modal.hidden = false;
+            setTimeout(() => { const b = $('#sentClose'); b && b.focus(); }, 50);
+        };
+        const closeSentModal = () => { if (modal) modal.hidden = true; };
+        if (modal) {
+            $('#sentClose').addEventListener('click', closeSentModal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) closeSentModal(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSentModal(); });
+        }
+
         let busy = false;
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -4412,6 +4512,7 @@ footer {
                 showResult('success', `<i class="fas fa-circle-check"></i><span>Thanks ${escapeHtml(data.name.split(' ')[0])}! Your message has been sent — I'll get back to you within 24 hours.</span>`);
                 toast('Message sent successfully!');
                 flashButton('success', 'Message Sent Successfully!', 'fas fa-circle-check');
+                openSentModal(data.name.split(' ')[0]);
                 form.reset();
                 $$('.field.invalid', form).forEach((f) => f.classList.remove('invalid'));
                 counter.textContent = '0 / 2000';
